@@ -1,0 +1,85 @@
+%%%%%%%%%%%%%%%%%%%%%%    读取两个CSV文件  %%%%%%%%%%%%%%%%%%%
+data1 = readtable('Logic_100%reactiontime.csv');
+data2 = readtable('Labview_100%reactiontime.csv');
+
+%%%%%%%%%%%%%%%%%%%%%%    设置通用参数  %%%%%%%%%%%%%%%%%%%
+max_data_points = 100; 
+max_allowed_time_diff = 1000; % 毫秒
+
+%%%%%%%%%%%%%%%%%%%%%%   处理文件  %%%%%%%%%%%%%%%%%%%
+[reaction_times1, stats1] = processReactionTimes(data1, max_data_points, max_allowed_time_diff);
+[reaction_times2, stats2] = processReactionTimes(data2, max_data_points, max_allowed_time_diff);
+
+%%%%%%%%%%%%%%%%%%%%%%%  设置数据参数  %%%%%%%%%%%%%%%%%%% 
+min_length = min(length(reaction_times1), length(reaction_times2));
+reaction_times1 = reaction_times1(1:min_length);
+reaction_times2 = reaction_times2(1:min_length);
+differences = reaction_times1 - reaction_times2;% 计算两者一一对应的反应时间之差
+function [reaction_times, stats] = processReactionTimes(data, max_data_points, max_allowed_time_diff)
+time = data.("Time");
+ch0 = data.("Channel0");
+ch2 = data.("Channel2");
+reaction_times = [];
+prev_ch0 = ch0(1);
+prev_ch2 = ch2(1);
+
+%%%%%%%%%%%%%%%%%%%%%%  开始循环  %%%%%%%%%%%%%%%%%%%   
+for i = 2:length(time)%从第2个时间点开始遍历整个时间序列
+        if length(reaction_times) >= max_data_points
+            break;
+        end
+      
+        if ch0(i) == 1 && prev_ch0 == 0%检测 Channel 0 的上升沿
+            ch0_rise_time = time(i);
+            ch0_rise_index = i;
+            
+            for j = ch0_rise_index:length(time)%寻找 Channel 2 的下降沿
+                if length(reaction_times) >= max_data_points
+                    break;
+                end
+                
+                if ch2(j) == 0 && prev_ch2 == 1%检测 Channel 2 的下降沿
+                    if j + 10 <= length(time) && all(ch2(j:j+10)) == 0%检查下降沿后至少连续10个时间点都保持为0
+                        ch2_fall_time = time(j);
+                        reaction_time = (ch2_fall_time - ch0_rise_time) * 1000;%计算反应时间(ms)
+                        
+                        if reaction_time <= max_allowed_time_diff%反应时间有效性检查
+                            reaction_times = [reaction_times; reaction_time];
+                        else
+                            break;
+                        end
+                        break;
+                    end
+                end
+                prev_ch2 = ch2(j);更新前一个 Channel 2 值
+            end
+        end
+        prev_ch0 = ch0(i);
+        prev_ch2 = ch2(i);
+    end
+    
+    if length(reaction_times) > max_data_points%确保最终的反应时间数据不超过最大允许数量
+        reaction_times = reaction_times(1:max_data_points);
+    end
+    
+   
+    if ~isempty(reaction_times)   % 计算统计量
+        stats.min = min(reaction_times);
+        stats.max = max(reaction_times);
+        stats.mean = mean(reaction_times);
+        stats.std = std(reaction_times);
+    else
+        stats.min = NaN;
+        stats.max = NaN;
+        stats.mean = NaN;
+        stats.std = NaN;
+    end
+    
+    
+    fprintf('\n文件分析结果:\n'); % 显示单个文件的结果
+    fprintf('有效样本数: %d\n', length(reaction_times));
+    fprintf('最小值: %.2f 毫秒\n', stats.min);
+    fprintf('最大值: %.2f 毫秒\n', stats.max);
+    fprintf('平均值: %.2f 毫秒\n', stats.mean);
+    fprintf('标准差: %.2f 毫秒\n', stats.std);
+end

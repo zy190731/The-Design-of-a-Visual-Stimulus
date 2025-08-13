@@ -1,0 +1,66 @@
+%%%%%%%%%%%%%%%%%%%%%%    读取CSV文件  %%%%%%%%%%%%%%%%%%%
+data = readtable('digital6.csv');  % 替换为实际文件路径
+time = data.('Time');
+ch0 = data.('Channel0');
+ch1 = data.('Channel1');
+
+%%%%%%%%%%%%%%%%%%%%%%    检测高低电平信号边沿事件  %%%%%%%%%%%%%%%%%%%
+ch0_rise_idx = find(diff(ch0) == 1) + 1;% Channel 0上升沿即高电平(0→1)
+ch0_rise_time = time(ch0_rise_idx);
+ch0_fall_idx = find(diff(ch0) == -1) + 1;% Channel 0下降沿即下降沿(1→0)
+ch0_fall_time = time(ch0_fall_idx);
+
+ch1_rise_idx = find(diff(ch1) == 1) + 1;% Channel 1上升沿(0→1)
+ch1_rise_time = time(ch1_rise_idx);
+ch1_fall_idx = find(diff(ch1) == -1) + 1;% Channel 1下降沿(1→0)
+ch1_fall_time = time(ch1_fall_idx);
+
+%%%%%%%%%%%%%%%%%%%%%%    参数设置  %%%%%%%%%%%%%%%%%%%
+max_events = 1000;  % 设置最大事件数量为1000
+ch0_rise_time = ch0_rise_time(1:min(length(ch0_rise_time), max_events));% 截取前1000次事件
+ch1_rise_time = ch1_rise_time(1:min(length(ch1_rise_time), max_events));
+ch0_fall_time = ch0_fall_time(1:min(length(ch0_fall_time), max_events));
+ch1_fall_time = ch1_fall_time(1:min(length(ch1_fall_time), max_events));
+min_rise = min(length(ch0_rise_time), length(ch1_rise_time));% 确保事件数量一致(取最小长度)
+rise_diff = (ch1_rise_time(1:min_rise) - ch0_rise_time(1:min_rise)) * 1000;  % 直接转换为ms
+min_fall = min(length(ch0_fall_time), length(ch1_fall_time));
+fall_diff = (ch1_fall_time(1:min_fall) - ch0_fall_time(1:min_fall)) * 1000;  % 直接转换为ms
+
+%%%%%%%%%%%%%%%%%%%%%%    计算统计量  %%%%%%%%%%%%%%%%%%%
+rise_max = max(rise_diff);  % 上升沿延迟统计，已经是ms单位
+rise_min = min(rise_diff);
+rise_mean = mean(rise_diff);
+rise_std = std(rise_diff);
+
+fall_max = max(fall_diff);  % % 下降沿延迟统计
+fall_min = min(fall_diff);
+fall_mean = mean(fall_diff);
+fall_std = std(fall_diff);
+
+%%%%%%%%%%%%%%%%%%%%%%   绘制直方分布图  %%%%%%%%%%%%%%%%%%%% 
+figure('Position', [100, 100, 1200, 600]);
+subplot(1,2,1);% 信号高电平时间延迟直方图
+histogram(rise_diff, 20, 'FaceColor', [0.2 0.6 0.8]);
+xlabel('TIME DELAY(ms)');
+ylabel('NUMBER');
+title('Signal High Level');
+grid on;
+subplot(1,2,2);% 下降沿延迟直方图
+histogram(fall_diff, 20, 'FaceColor', [0.8 0.4 0.2]);
+xlabel('TIME DELAY(ms)');
+ylabel('NUMBER');
+title('Signal Low Level');
+grid on;
+
+%%%%%%%%%%%%%%%%%%%%%%   显示统计结果  %%%%%%%%%%%%%%%%%%%% 
+fprintf('上升沿延迟统计:\n');
+fprintf('最大值: %.2f ms\n', rise_max);
+fprintf('最小值: %.2f ms\n', rise_min);
+fprintf('平均值: %.2f ms\n', rise_mean);
+fprintf('标准差: %.2f ms\n\n', rise_std);
+
+fprintf('下降沿延迟统计:\n');
+fprintf('最大值: %.2f ms\n', fall_max);
+fprintf('最小值: %.2f ms\n', fall_min);
+fprintf('平均值: %.2f ms\n', fall_mean);
+fprintf('标准差: %.2f ms\n', fall_std);
