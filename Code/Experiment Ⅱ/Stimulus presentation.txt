@@ -1,0 +1,81 @@
+%%%%%%%%%%%%%%%%%%%%%%     初始化    %%%%%%%%%%%%%%%%%%%
+Screen('Preference', 'SkipSyncTests', 0); % 禁止跳过自检保证时序精度
+close all; % 关闭所有图形窗口
+clearvars; % 清除工作区
+sca;   
+PsychDefaultSetup(2);
+%%%%%%%%%%%%%%%%%%%%%%     窗口设置    %%%%%%%%%%%%%%%%%%%
+% screens = Screen('Screens');
+targetWindowNumber = 1;
+[window, windowRect] = PsychImaging('OpenWindow', targetWindowNumber, 128); % 初始灰色背景（0.5 代替 128）
+Screen('BlendFunction', window, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+white = WhiteIndex(targetWindowNumber);
+black = BlackIndex(targetWindowNumber);
+grey = white / 2;
+Screen('FillRect', window, grey);
+Screen('Flip', window); % 呈现屏幕
+
+%%%%%%%%%%%%%%%%%%%%%%     按键检测    %%%%%%%%%%%%%%%%%%%
+KbName('UnifyKeyNames');% 初始化键盘检测
+RestrictKeysForKbCheck([]); % 检测所有按键
+
+%%%%%%%%%%%%%%%%%%%%%%     定义黑白图片及参数   %%%%%%%%%%%%%%%%%%%% 
+imageSize = [700,700]; % 图片尺寸（可根据需要调整）
+blackTexture = Screen('MakeTexture', window, black * ones(imageSize));% 创建黑白纹理
+whiteTexture = Screen('MakeTexture', window, white * ones(imageSize));% 创建黑白纹理
+rect = CenterRect([0, 0, imageSize(1), imageSize(2)], windowRect);% 设置图片位置（居中）
+frequencies = [1,1.1,1.2, 1.3, 1.4]; % 调慢后的闪烁频率数组（Hz）
+durationPerFrequency = 3; % 每个频率持续时间延长至4秒
+whiteCount = 0;% 初始化计数器 
+blackCount = 0;
+maxCount = 1300; % 每种颜色最大出现次数
+
+%%%%%%%%%%%%%%%%%%%%%%%     开始主循环    %%%%%%%%%%%%%%%%%%%%%
+exitLoop = false; % 退出循环标志
+while ~exitLoop && (whiteCount < maxCount || blackCount < maxCount)
+    % 重置频率索引和时间
+    currentFrequencyIndex = 1;
+    totalFrequencies = length(frequencies);
+    startTime = GetSecs;
+    currentState = 1; % 1=白，0=黑
+    lastFlipTime = startTime;
+    
+    while currentFrequencyIndex <= totalFrequencies && ~exitLoop && ...
+            (whiteCount < maxCount || blackCount < maxCount)% 获取当前频率        
+        currentFreq = frequencies(currentFrequencyIndex);
+        currentInterval = 1 / (2 * currentFreq); % 每个状态的持续时间（秒）             
+        frequencyEndTime = startTime + durationPerFrequency;  % 计算当前频率的结束时间   
+         
+        if currentFrequencyIndex == totalFrequencies% 如果是最后一个频率，减少白色显示时间            
+            frequencyEndTime = frequencyEndTime - currentInterval;% 调整结束时间，确保最后一个频率的白色显示时间与前面一致
+        end
+               
+        while GetSecs < frequencyEndTime && ~exitLoop && ...
+                (whiteCount < maxCount || blackCount < maxCount) % 在当前频率时间段内闪烁           
+            [keyIsDown, ~, keyCode] = KbCheck; % 检查按键
+            if keyIsDown
+                exitLoop = true;
+                break;
+            end
+                      
+            if currentState == 1 && whiteCount < maxCount % 根据当前状态显示黑白
+                Screen('DrawTexture', window, whiteTexture, [], rect);
+                currentState = 0;
+                whiteCount = whiteCount + 1;
+            elseif blackCount < maxCount
+                Screen('DrawTexture', window, blackTexture, [], rect);
+                currentState = 1;
+                blackCount = blackCount + 1;
+            end                       
+            lastFlipTime = Screen('Flip', window, lastFlipTime + currentInterval);% 刷新屏幕并等待下一个翻转时间                 
+        end
+        startTime = GetSecs;% 更新开始时间为当前频率结束时间        
+        currentFrequencyIndex = currentFrequencyIndex + 1;% 切换到下一个频率
+    end
+end
+
+%%%%%%%%%%%%%%%%%%%%%%     结束循环   %%%%%%%%%%%%%%%
+% 结束实验
+sca; % 关闭屏幕
+close all;%关闭所有图形窗口
+clearvars;%清除工作区
